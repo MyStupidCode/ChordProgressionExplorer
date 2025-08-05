@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>D Major I-V-vi-IV Progression</title>
+    <style>
+        body {
+            font-family: sans-serif;
+        }
+    </style>
+    <script src="https://unpkg.com/vexflow@4.0.1/build/cjs/vexflow-debug.js"></script>
+</head>
+
+<body>
+    <h1>D Major: The "Pop" Progression (I-V-vi-IV)</h1>
+    <div id="output"></div>
+
+    <script>
+        // Only the most basic classes are imported.
+        const { Renderer, Stave, StaveNote, Voice, Formatter } = Vex.Flow;
+
+        // --- Setup ---
+        const div = document.getElementById("output");
+        const renderer = new Renderer(div, Renderer.Backends.SVG);
+        renderer.resize(650, 200);
+        const context = renderer.getContext();
+
+        // --- Stave ---
+        const stave = new Stave(10, 40, 600);
+        stave.addClef("treble").addKeySignature("D").addTimeSignature("4/4");
+        stave.setContext(context).draw();
+
+        // --- Create Notes (NO annotations or other features) ---
+        const notes = [
+            new StaveNote({ keys: ["d/4", "f#/4", "a/4"], duration: "w" }),
+            new StaveNote({ keys: ["a/3", "c#/4", "e/4"], duration: "w" }),
+            new StaveNote({ keys: ["b/3", "d/4", "f#/4"], duration: "w" }),
+            new StaveNote({ keys: ["g/3", "b/3", "d/4"], duration: "w" }),
+        ];
+
+        // --- Create Voice and Format ---
+        const voice = new Voice({ num_beats: 16, beat_value: 4 });
+        voice.addTickables(notes);
+
+        new Formatter().joinVoices([voice]).format([voice], 550);
+        voice.draw(context, stave);
+    </script>
+</body>
+
+</html>

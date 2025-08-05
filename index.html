@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chord Progression Explorer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vexflow@4.0.1/build/cjs/vexflow-debug.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tone@14.7.58/build/Tone.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Simple transition for a smoother appearance */
+        #score-output {
+            transition: opacity 0.3s ease-in-out;
+        }
+
+        .vex-tab-note {
+            transition: fill 0.2s ease-in-out, stroke 0.2s ease-in-out;
+        }
+
+        .highlighted-note path,
+        .highlighted-note rect {
+            fill: #2563eb !important;
+            stroke: #2563eb !important;
+        }
+
+        /* Styling for the play button */
+        #play-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* Styling for the sliders */
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 8px;
+            background: #d1d5db;
+            outline: none;
+            opacity: 0.7;
+            transition: opacity .2s;
+            border-radius: 4px;
+        }
+
+        input[type="range"]:hover {
+            opacity: 1;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            background: #6b7280;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            background: #6b7280;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+
+<body class="bg-gray-100 text-gray-800 flex items-center justify-center min-h-screen">
+
+    <div class="w-full max-w-4xl bg-white rounded-xl shadow-lg p-6 md:p-8 m-4">
+
+        <header class="mb-6 border-b pb-4 flex items-center justify-between">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">Chord Progression Explorer</h1>
+                <p class="text-gray-600 mt-1">Select a progression, style, and key to see it on the staff.</p>
+            </div>
+            <div class="flex items-center space-x-4">
+                <div class="flex flex-col items-center">
+                    <div class="flex flex-col items-center mb-4">
+                        <label for="volume-slider" class="text-xs font-medium text-gray-700 mb-1">Volume: 🔊</label>
+                        <input type="range" id="volume-slider" min="-60" max="0" value="-6" step="1" class="w-32">
+                    </div>
+                    <div class="flex flex-col items-center">
+                        <label for="tempo-slider" class="text-xs font-medium text-gray-700 mb-1">Tempo: <span
+                                id="tempo-value">120</span> BPM</label>
+                        <input type="range" id="tempo-slider" min="40" max="220" value="120" step="1" class="w-32">
+                    </div>
+                </div>
+                <button id="play-button"
+                    class="bg-white hover:bg-gray-100 text-gray-800 font-bold py-2 px-4 rounded-full border border-gray-400 shadow-lg transition duration-200 ease-in-out">
+                    ▶️ Play
+                </button>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div>
+                <label for="progression-select" class="block text-sm font-medium text-gray-700 mb-1">Progression</label>
+                <select id="progression-select"
+                    class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="pop">The "Pop" Progression (I-V-vi-IV)</option>
+                    <option value="fifties">The '50s Progression (I-vi-IV-V)</option>
+                    <option value="jazz">The Jazz Standard (ii-V-I)</option>
+                    <option value="sensitive">The "Sensitive" Progression (vi-IV-I-V)</option>
+                    <option value="canon">Pachelbel's Canon (I-V-vi-iii-IV-I-IV-V)</option>
+                    <option value="blues">Simple Blues (I-IV-I-I-IV-IV-I-I-V-IV-I-I)</option>
+                    <option value="circle">Circle Progression (I-IV-vii°-iii-vi-ii-V)</option>
+                </select>
+            </div>
+            <div>
+                <label for="style-select" class="block text-sm font-medium text-gray-700 mb-1">Style</label>
+                <select id="style-select"
+                    class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="chords">Chords (Whole Notes)</option>
+                    <option value="arpeggios-asc">Arpeggios (Ascending 8ths)</option>
+                    <option value="arpeggios-desc">Arpeggios (Descending 8ths)</option>
+                    <option value="alberti">Alberti Bass (8ths)</option>
+                    <option value="waltz">Waltz (Bass on 1, Chords on 2 & 3)</option>
+                    <option value="strum">Guitar Strum (Down-Up 8ths)</option>
+                    <option value="major7th">Major 7th Chords</option>
+                    <option value="minor7th">Minor 7th Chords</option>
+                    <option value="dominant7th">Dominant 7th Chords</option>
+                    <option value="diminished">Diminished Triads</option>
+                    <option value="augmented">Augmented Triads</option>
+                    <option value="sus4">Suspended 4th Chords</option>
+                    <option value="sus2">Suspended 2nd Chords</option>
+                </select>
+            </div>
+            <div>
+                <label for="key-select" class="block text-sm font-medium text-gray-700 mb-1">Key</label>
+                <select id="key-select"
+                    class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    </select>
+            </div>
+        </div>
+
+        <div id="score-output"
+            class="w-full bg-gray-50 p-4 rounded-lg border min-h-[180px] flex justify-center items-center">
+            </div>
+
+    </div>
+
+    <script>
+        // --- VexFlow Classes ---
+        const { Renderer, Stave, StaveNote, Voice, Formatter, Beam, Barline, Accidental } = Vex.Flow;
+
+        // --- DOM Elements ---
+        const progressionSelect = document.getElementById('progression-select');
+        const styleSelect = document.getElementById('style-select');
+        const keySelect = document.getElementById('key-select');
+        const scoreOutput = document.getElementById('score-output');
+        const playButton = document.getElementById('play-button');
+        const tempoSlider = document.getElementById('tempo-slider');
+        const tempoValueDisplay = document.getElementById('tempo-value');
+        const volumeSlider = document.getElementById('volume-slider');
+
+        // --- Music Playback Variables ---
+        let synth;
+        let currentTransportId;
+        let isPlaying = false;
+
+        // --- Music Theory Data ---
+        const SHARP_NOTES = ['c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'b'];
+        const FLAT_NOTES = ['c', 'db', 'd', 'eb', 'e', 'f', 'gb', 'g', 'ab', 'a', 'bb', 'b'];
+        const NOTE_VALUES = { 'c': 0, 'd': 2, 'e': 4, 'f': 5, 'g': 7, 'a': 9, 'b': 11 };
+
+        const PROGRESSIONS = {
+            'pop': {
+                name: "I-V-vi-IV",
+                baseChords: [['c/4', 'e/4', 'g/4'], ['g/3', 'b/3', 'd/4'], ['a/3', 'c/4', 'e/4'], ['f/3', 'a/3', 'c/4']]
+            },
+            'fifties': {
+                name: "I-vi-IV-V",
+                baseChords: [['c/4', 'e/4', 'g/4'], ['a/3', 'c/4', 'e/4'], ['f/3', 'a/3', 'c/4'], ['g/3', 'b/3', 'd/4']]
+            },
+            'jazz': {
+                name: "ii-V-I",
+                baseChords: [['d/4', 'f/4', 'a/4'], ['g/3', 'b/3', 'd/4'], ['c/4', 'e/4', 'g/4'], ['c/4', 'e/4', 'g/4']]
+            },
+            'sensitive': {
+                name: "vi-IV-I-V",
+                baseChords: [['a/3', 'c/4', 'e/4'], ['f/3', 'a/3', 'c/4'], ['c/4', 'e/4', 'g/4'], ['g/3', 'b/3', 'd/4']]
+            },
+            'canon': {
+                name: "Pachelbel's Canon (I-V-vi-iii-IV-I-IV-V)",
+                baseChords: [['c/4', 'e/4', 'g/4'], ['g/3', 'b/3', 'd/4'], ['a/3', 'c/4', 'e/4'], ['e/4', 'g/4', 'b/4'], ['f/3', 'a/3', 'c/4'], ['c/4', 'e/4', 'g/4'], ['f/3', 'a/3', 'c/4'], ['g/3', 'b/3', 'd/4']]
+            },
+            'blues': {
+                name: "Simple Blues (I-IV-I-I-IV-IV-I-I-V-IV-I-I)",
+                baseChords: [
+                    ['c/4', 'e/4', 'g/4'], ['f/3', 'a/3', 'c/4'], ['c/4', 'e/4', 'g/4'], ['c/4', 'e/4', 'g/4'],
+                    ['f/3', 'a/3', 'c/4'], ['f/3', 'a/3', 'c/4'], ['c/4', 'e/4', 'g/4'], ['c/4', 'e/4', 'g/4'],
+                    ['g/3', 'b/3', 'd/4'], ['f/3', 'a/3', 'c/4'], ['c/4', 'e/4', 'g/4'], ['c/4', 'e/4', 'g/4']
+                ]
+            },
+            'circle': {
+                name: "Circle Progression (I-IV-vii°-iii-vi-ii-V)",
+                baseChords: [['c/4', 'e/4', 'g/4'], ['f/3', 'a/3', 'c/4'], ['b/3', 'd/4', 'f/4'], ['e/4', 'g/4', 'b/4'], ['a/3', 'c/4', 'e/4'], ['d/4', 'f/4', 'a/4'], ['g/3', 'b/3', 'd/4']]
+            }
+        };
+
+        const ALL_KEYS = [
+            { name: 'C Major', signature: 'C', interval: 0, useFlats: false, accidentals: 0 },
+            { name: 'G Major', signature: 'G', interval: 7, useFlats: false, accidentals: 1 },
+            { name: 'D Major', signature: 'D', interval: 2, useFlats: false, accidentals: 2 },
+            { name: 'A Major', signature: 'A', interval: 9, useFlats: false, accidentals: 3 },
+            { name: 'E Major', signature: 'E', interval: 4, useFlats: false, accidentals: 4 },
+            { name: 'B Major', signature: 'B', interval: 11, useFlats: false, accidentals: 5 },
+            { name: 'F# Major', signature: 'F#', interval: 6, useFlats: false, accidentals: 6 },
+            { name: 'Db Major', signature: 'Db', interval: 1, useFlats: true, accidentals: 5 },
+            { name: 'Ab Major', signature: 'Ab', interval: 8, useFlats: true, accidentals: 4 },
+            { name: 'Eb Major', signature: 'Eb', interval: 3, useFlats: true, accidentals: 3 },
+            { name: 'Bb Major', signature: 'Bb', interval: 10, useFlats: true, accidentals: 2 },
+            { name: 'F Major', signature: 'F', interval: 5, useFlats: true, accidentals: 1 },
+        ];
+
+        let vexFlowNotes = [];
+
+        // --- Core Functions ---
+
+        function toToneNote(vexflowNote) {
+            const [note, octave] = vexflowNote.split('/');
+            const toneNote = note.charAt(0).toUpperCase() + note.slice(1);
+            return `${toneNote}${octave}`;
+        }
+
+        function transpose(noteName, interval, useFlats) {
+            const noteRegex = /^([a-g])(b|bb|#|##)?\/?([0-9])$/;
+            const match = noteRegex.exec(noteName.toLowerCase());
+            if (!match) return noteName;
+
+            const [, note, accidental, octave] = match;
+            let value = NOTE_VALUES[note];
+            if (accidental) {
+                if (accidental.includes('b')) value -= accidental.length;
+                if (accidental.includes('#')) value += accidental.length;
+            }
+
+            const totalValue = value + (parseInt(octave) * 12) + interval;
+            const newOctave = Math.floor(totalValue / 12);
+            let noteIndex = totalValue % 12;
+            if (noteIndex < 0) noteIndex += 12;
+
+            const spelling = useFlats ? FLAT_NOTES[noteIndex] : SHARP_NOTES[noteIndex];
+            return `${spelling}/${newOctave}`;
+        }
+
+        function getPadding(numAccidentals) {
+            const basePadding = 80;
+            const paddingPerAccidental = 15;
+            return basePadding + (numAccidentals * paddingPerAccidental);
+        }
+
+        function applyStyleToChord(chord, style) {
+            if (chord.length < 3) return chord;
+            const [rootNote, thirdNote, fifthNote] = chord;
+            let newChord = [rootNote, thirdNote, fifthNote];
+
+            switch (style) {
+                case 'major7th':
+                    newChord.push(transpose(rootNote, 11, false));
+                    break;
+                case 'minor7th':
+                    newChord.push(transpose(rootNote, 10, false));
+                    break;
+                case 'dominant7th':
+                    newChord.push(transpose(rootNote, 10, false));
+                    break;
+                case 'sus4':
+                    const fourth = transpose(rootNote, 5, false);
+                    newChord[1] = fourth;
+                    break;
+                case 'sus2':
+                    const second = transpose(rootNote, 2, false);
+                    newChord[1] = second;
+                    break;
+                case 'diminished':
+                    const flatThird = transpose(rootNote, 3, false);
+                    const flatFifth = transpose(rootNote, 6, false);
+                    newChord = [rootNote, flatThird, flatFifth];
+                    break;
+                case 'augmented':
+                    const augFifth = transpose(rootNote, 8, false);
+                    newChord[2] = augFifth;
+                    break;
+                default:
+                    break;
+            }
+            return newChord;
+        }
+
+        function highlightNote(noteIndex, shouldHighlight) {
+            if (vexFlowNotes[noteIndex]) {
+                const noteElement = vexFlowNotes[noteIndex].el;
+                if (noteElement) {
+                    if (shouldHighlight) {
+                        noteElement.classList.add('highlighted-note');
+                    } else {
+                        noteElement.classList.remove('highlighted-note');
+                    }
+                }
+            }
+        }
+
+        function resetHighlights() {
+            vexFlowNotes.forEach((note, index) => highlightNote(index, false));
+        }
+
+        async function playProgression() {
+            if (isPlaying) {
+                return;
+            }
+
+            // Start the audio context on user interaction
+            await Tone.start();
+
+            isPlaying = true;
+            playButton.textContent = 'Playing...';
+            playButton.disabled = true;
+
+            resetHighlights();
+            Tone.Transport.stop();
+            Tone.Transport.clear(currentTransportId);
+
+            const notesToPlay = [];
+
+            const selectedProgression = PROGRESSIONS[progressionSelect.value];
+            const selectedStyle = styleSelect.value;
+            let transposedProgression = selectedProgression.baseChords.map(chord =>
+                chord.map(note => transpose(note, ALL_KEYS[keySelect.value].interval, ALL_KEYS[keySelect.value].useFlats))
+            );
+
+            if (['major7th', 'minor7th', 'dominant7th', 'diminished', 'augmented', 'sus4', 'sus2'].includes(selectedStyle)) {
+                transposedProgression = transposedProgression.map(chord => applyStyleToChord(chord, selectedStyle));
+            }
+
+            const eventDuration = '4n';
+
+            if (['chords', 'major7th', 'minor7th', 'dominant7th', 'diminished', 'augmented', 'sus4', 'sus2'].includes(selectedStyle)) {
+                transposedProgression.forEach(chord => notesToPlay.push({ notes: chord, duration: '2n' }));
+            } else if (selectedStyle === 'waltz') {
+                transposedProgression.forEach(chord => {
+                    const [root, third, fifth] = chord;
+                    notesToPlay.push({ notes: [root], duration: '4n' });
+                    notesToPlay.push({ notes: [third, fifth], duration: '4n' });
+                    notesToPlay.push({ notes: [third, fifth], duration: '4n' });
+                });
+            } else if (selectedStyle === 'strum') {
+                transposedProgression.forEach(chord => {
+                    notesToPlay.push({ notes: chord, duration: '8n' });
+                    notesToPlay.push({ notes: chord, duration: '8n' });
+                });
+            } else {
+                transposedProgression.forEach(chord => {
+                    const [root, third, fifth] = chord;
+                    const octaveRoot = root.replace(/\d/, d => parseInt(d) + 1);
+                    let pattern = [];
+                    if (selectedStyle === 'arpeggios-asc') pattern = [root, third, fifth, octaveRoot, fifth, third, root, third];
+                    else if (selectedStyle === 'arpeggios-desc') pattern = [octaveRoot, fifth, third, root, third, fifth, octaveRoot, fifth];
+                    else if (selectedStyle === 'alberti') pattern = [root, fifth, third, fifth, root, fifth, third, fifth];
+
+                    pattern.forEach(note => {
+                        notesToPlay.push({ notes: [note], duration: '8n' });
+                    });
+                });
+            }
+
+            let index = 0;
+            currentTransportId = Tone.Transport.scheduleRepeat((time) => {
+                const event = notesToPlay[index];
+                if (event) {
+                    const toneNotes = event.notes.map(note => toToneNote(note));
+                    const duration = event.duration;
+                    synth.triggerAttackRelease(toneNotes, duration, time);
+
+                    Tone.Draw.schedule(() => {
+                        resetHighlights();
+                        highlightNote(index, true);
+                    }, time);
+                    index++;
+                } else {
+                    Tone.Draw.schedule(() => {
+                        resetHighlights();
+                        isPlaying = false;
+                        playButton.textContent = '▶️ Play';
+                        playButton.disabled = false;
+                        Tone.Transport.stop();
+                    }, time);
+                }
+            }, eventDuration);
+
+            Tone.Transport.start();
+        }
+
+        function drawScore() {
+            if (isPlaying) {
+                isPlaying = false;
+                Tone.Transport.stop();
+                Tone.Transport.clear(currentTransportId);
+            }
+
+            playButton.textContent = '▶️ Play';
+            playButton.disabled = false;
+
+            resetHighlights();
+            const selectedProgression = PROGRESSIONS[progressionSelect.value];
+            const selectedStyle = styleSelect.value;
+            const selectedKey = ALL_KEYS[keySelect.value];
+            scoreOutput.innerHTML = '';
+            scoreOutput.style.opacity = 0;
+            vexFlowNotes = [];
+
+            let transposedProgression = selectedProgression.baseChords.map(chord =>
+                chord.map(note => transpose(note, selectedKey.interval, selectedKey.useFlats))
+            );
+
+            if (['major7th', 'minor7th', 'dominant7th', 'diminished', 'augmented', 'sus4', 'sus2'].includes(selectedStyle)) {
+                transposedProgression = transposedProgression.map(chord => applyStyleToChord(chord, selectedStyle));
+            }
+
+            const renderer = new Renderer(scoreOutput, Renderer.Backends.SVG);
+            const context = renderer.getContext();
+            let stave1, stave2;
+
+            if (['chords', 'major7th', 'minor7th', 'dominant7th', 'diminished', 'augmented', 'sus4', 'sus2'].includes(selectedStyle)) {
+                const notes = transposedProgression.map(chord => new StaveNote({ keys: chord, duration: 'w' }));
+                vexFlowNotes = notes;
+                const voice = new Voice({ num_beats: notes.length * 4, beat_value: 4 }).addTickables(notes);
+                const formatWidth = (notes.length * 50) + 100;
+                const padding = getPadding(selectedKey.accidentals);
+                const staveWidth = formatWidth + padding;
+                renderer.resize(staveWidth, 180);
+                stave1 = new Stave(10, 20, staveWidth);
+                stave1.addClef("treble").addKeySignature(selectedKey.signature).addTimeSignature("4/4");
+                stave1.setEndBarType(Barline.type.END);
+                stave1.setContext(context).draw();
+                new Formatter().joinVoices([voice]).format([voice], formatWidth);
+                voice.draw(context, stave1);
+            } else if (selectedStyle === 'waltz') {
+                const notes = [];
+                transposedProgression.forEach(chord => {
+                    const [root, third, fifth] = chord;
+                    notes.push(
+                        new StaveNote({ keys: [root], duration: 'q' }),
+                        new StaveNote({ keys: [third, fifth], duration: 'q' }),
+                        new StaveNote({ keys: [third, fifth], duration: 'q' })
+                    );
+                });
+                vexFlowNotes = notes;
+                const voice = new Voice({ num_beats: notes.length, beat_value: 4 }).addTickables(notes);
+                const numMeasures = transposedProgression.length;
+                const formatWidth = (numMeasures * 100);
+                const padding = getPadding(selectedKey.accidentals);
+                const staveWidth = formatWidth + padding;
+                renderer.resize(staveWidth, 180);
+                stave1 = new Stave(10, 20, staveWidth);
+                stave1.addClef("treble").addKeySignature(selectedKey.signature).addTimeSignature("3/4");
+                stave1.setEndBarType(Barline.type.END);
+                stave1.setContext(context).draw();
+                new Formatter().joinVoices([voice]).format([voice], formatWidth);
+                voice.draw(context, stave1);
+            } else if (selectedStyle === 'strum') {
+                const notes = [];
+                transposedProgression.forEach(chord => {
+                    notes.push(
+                        new StaveNote({ keys: chord, duration: '8' }),
+                        new StaveNote({ keys: chord, duration: '8', stem_direction: -1 })
+                    );
+                });
+                vexFlowNotes = notes;
+                const voice = new Voice({ num_beats: notes.length * 0.5, beat_value: 4 }).addTickables(notes);
+                const numMeasures = transposedProgression.length / 2;
+                const formatWidth = (numMeasures * 100);
+                const padding = getPadding(selectedKey.accidentals);
+                const staveWidth = formatWidth + padding;
+                renderer.resize(staveWidth, 180);
+                stave1 = new Stave(10, 20, staveWidth);
+                stave1.addClef("treble").addKeySignature(selectedKey.signature).addTimeSignature("4/4");
+                stave1.setEndBarType(Barline.type.END);
+                stave1.setContext(context).draw();
+                const beams = Beam.generateBeams(notes);
+                new Formatter().format([voice], formatWidth);
+                voice.draw(context, stave1);
+                beams.forEach(b => b.setContext(context).draw());
+            } else {
+                let notes1 = [], notes2 = [];
+                transposedProgression.forEach(chord => {
+                    const [root, third, fifth] = chord;
+                    const octaveRoot = root.replace(/\d/, d => parseInt(d) + 1);
+                    let pattern = [];
+                    if (selectedStyle === 'arpeggios-asc') pattern = [root, third, fifth, octaveRoot, fifth, third, root, third];
+                    else if (selectedStyle === 'arpeggios-desc') pattern = [octaveRoot, fifth, third, root, third, fifth, octaveRoot, fifth];
+                    else if (selectedStyle === 'alberti') pattern = [root, fifth, third, fifth, root, fifth, third, fifth];
+
+                    pattern.map(noteKey => {
+                        const newNote = new StaveNote({ keys: [noteKey], duration: '8' });
+                        if (vexFlowNotes.length < (pattern.length * transposedProgression.length) / 2) {
+                            notes1.push(newNote);
+                        } else {
+                            notes2.push(newNote);
+                        }
+                        vexFlowNotes.push(newNote);
+                    });
+                });
+                const voice1 = new Voice({ num_beats: (notes1.length / 2), beat_value: 4 }).addTickables(notes1);
+                const voice2 = new Voice({ num_beats: (notes2.length / 2), beat_value: 4 }).addTickables(notes2);
+                const formatter = new Formatter();
+                const notesWidth1 = formatter.preCalculateMinTotalWidth([voice1]);
+                const notesWidth2 = formatter.preCalculateMinTotalWidth([voice2]);
+                const padding = getPadding(selectedKey.accidentals);
+                const staveWidth1 = notesWidth1 + padding;
+                const staveWidth2 = notesWidth2 + padding;
+                renderer.resize(Math.max(staveWidth1, staveWidth2) + 40, 280);
+                stave1 = new Stave(10, 20, staveWidth1);
+                stave1.addClef("treble").addKeySignature(selectedKey.signature).addTimeSignature("4/4");
+                stave1.setContext(context).draw();
+                stave2 = new Stave(10, 140, staveWidth2);
+                stave2.addClef("treble").addKeySignature(selectedKey.signature).addTimeSignature("4/4");
+                stave2.setEndBarType(Barline.type.END);
+                stave2.setContext(context).draw();
+                const beams1 = Beam.generateBeams(notes1);
+                const beams2 = Beam.generateBeams(notes2);
+                formatter.format([voice1], notesWidth1);
+                voice1.draw(context, stave1);
+                beams1.forEach(b => b.setContext(context).draw());
+                new Formatter().format([voice2], notesWidth2);
+                voice2.draw(context, stave2);
+                beams2.forEach(b => b.setContext(context).draw());
+            }
+
+            scoreOutput.style.opacity = 1;
+        }
+
+        async function init() {
+            ALL_KEYS.forEach((key, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = key.name;
+                keySelect.appendChild(option);
+            });
+            keySelect.value = 2;
+
+            // Initialize a single Tone.Synth
+            synth = new Tone.Synth({
+                oscillator: {
+                    type: 'sine'
+                },
+                envelope: {
+                    attack: 0.05,
+                    decay: 0.1,
+                    sustain: 0.3,
+                    release: 1.5
+                }
+            }).toDestination();
+
+            Tone.Destination.volume.value = volumeSlider.value;
+            Tone.Transport.bpm.value = tempoSlider.value;
+            tempoValueDisplay.textContent = tempoSlider.value;
+
+            progressionSelect.addEventListener('change', drawScore);
+            styleSelect.addEventListener('change', drawScore);
+            keySelect.addEventListener('change', drawScore);
+            playButton.addEventListener('click', playProgression);
+
+            tempoSlider.addEventListener('input', (event) => {
+                Tone.Transport.bpm.value = event.target.value;
+                tempoValueDisplay.textContent = event.target.value;
+            });
+
+            volumeSlider.addEventListener('input', (event) => {
+                Tone.Destination.volume.value = event.target.value;
+            });
+
+            drawScore();
+        }
+
+        init();
+    </script>
+</body>
+
+</html>

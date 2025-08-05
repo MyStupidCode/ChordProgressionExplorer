@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>I-V-vi-IV in 12 Keys</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding-bottom: 50px;
+        }
+    </style>
+    <script src="https://unpkg.com/vexflow@4.0.1/build/cjs/vexflow-debug.js"></script>
+</head>
+
+<body>
+    <div id="output"></div>
+
+    <script>
+        const { Renderer, Stave, StaveNote, Voice, Formatter } = Vex.Flow;
+
+        // --- Data for all 12 keys ---
+        // Each object contains the display name, the VexFlow signature,
+        // and the four chords (I, V, vi, IV) for the progression.
+        const allKeys = [
+            { name: 'C Major', signature: 'C', chords: [{ keys: ['c/4', 'e/4', 'g/4'], duration: 'w' }, { keys: ['g/3', 'b/3', 'd/4'], duration: 'w' }, { keys: ['a/3', 'c/4', 'e/4'], duration: 'w' }, { keys: ['f/3', 'a/3', 'c/4'], duration: 'w' }] },
+            { name: 'G Major', signature: 'G', chords: [{ keys: ['g/3', 'b/3', 'd/4'], duration: 'w' }, { keys: ['d/4', 'f#/4', 'a/4'], duration: 'w' }, { keys: ['e/4', 'g/4', 'b/4'], duration: 'w' }, { keys: ['c/4', 'e/4', 'g/4'], duration: 'w' }] },
+            { name: 'D Major', signature: 'D', chords: [{ keys: ['d/4', 'f#/4', 'a/4'], duration: 'w' }, { keys: ['a/3', 'c#/4', 'e/4'], duration: 'w' }, { keys: ['b/3', 'd/4', 'f#/4'], duration: 'w' }, { keys: ['g/3', 'b/3', 'd/4'], duration: 'w' }] },
+            { name: 'A Major', signature: 'A', chords: [{ keys: ['a/3', 'c#/4', 'e/4'], duration: 'w' }, { keys: ['e/4', 'g#/4', 'b/4'], duration: 'w' }, { keys: ['f#/3', 'a/3', 'c#/4'], duration: 'w' }, { keys: ['d/3', 'f#/3', 'a/3'], duration: 'w' }] },
+            { name: 'E Major', signature: 'E', chords: [{ keys: ['e/3', 'g#/3', 'b/3'], duration: 'w' }, { keys: ['b/3', 'd#/4', 'f#/4'], duration: 'w' }, { keys: ['c#/4', 'e/4', 'g#/4'], duration: 'w' }, { keys: ['a/3', 'c#/4', 'e/4'], duration: 'w' }] },
+            { name: 'B Major', signature: 'B', chords: [{ keys: ['b/3', 'd#/4', 'f#/4'], duration: 'w' }, { keys: ['f#/3', 'a#/3', 'c#/4'], duration: 'w' }, { keys: ['g#/3', 'b/3', 'd#/4'], duration: 'w' }, { keys: ['e/3', 'g#/3', 'b/3'], duration: 'w' }] },
+            { name: 'F# Major', signature: 'F#', chords: [{ keys: ['f#/3', 'a#/3', 'c#/4'], duration: 'w' }, { keys: ['c#/4', 'e#/4', 'g#/4'], duration: 'w' }, { keys: ['d#/4', 'f#/4', 'a#/4'], duration: 'w' }, { keys: ['b/3', 'd#/4', 'f#/4'], duration: 'w' }] },
+            { name: 'F Major', signature: 'F', chords: [{ keys: ['f/3', 'a/3', 'c/4'], duration: 'w' }, { keys: ['c/4', 'e/4', 'g/4'], duration: 'w' }, { keys: ['d/4', 'f/4', 'a/4'], duration: 'w' }, { keys: ['bb/3', 'd/4', 'f/4'], duration: 'w' }] },
+            { name: 'Bb Major', signature: 'Bb', chords: [{ keys: ['bb/3', 'd/4', 'f/4'], duration: 'w' }, { keys: ['f/3', 'a/3', 'c/4'], duration: 'w' }, { keys: ['g/3', 'bb/3', 'd/4'], duration: 'w' }, { keys: ['eb/3', 'g/3', 'bb/3'], duration: 'w' }] },
+            { name: 'Eb Major', signature: 'Eb', chords: [{ keys: ['eb/3', 'g/3', 'bb/3'], duration: 'w' }, { keys: ['bb/3', 'd/4', 'f/4'], duration: 'w' }, { keys: ['c/4', 'eb/4', 'g/4'], duration: 'w' }, { keys: ['ab/3', 'c/4', 'eb/4'], duration: 'w' }] },
+            { name: 'Ab Major', signature: 'Ab', chords: [{ keys: ['ab/3', 'c/4', 'eb/4'], duration: 'w' }, { keys: ['eb/4', 'g/4', 'bb/4'], duration: 'w' }, { keys: ['f/3', 'ab/3', 'c/4'], duration: 'w' }, { keys: ['db/3', 'f/3', 'ab/3'], duration: 'w' }] },
+            { name: 'Db Major', signature: 'Db', chords: [{ keys: ['db/4', 'f/4', 'ab/4'], duration: 'w' }, { keys: ['ab/3', 'c/4', 'eb/4'], duration: 'w' }, { keys: ['bb/3', 'db/4', 'f/4'], duration: 'w' }, { keys: ['gb/3', 'bb/3', 'db/4'], duration: 'w' }] },
+        ];
+
+        // --- VexFlow Rendering ---
+        const div = document.getElementById("output");
+        const renderer = new Renderer(div, Renderer.Backends.SVG);
+        // Resize the canvas to be tall enough for all 12 staves.
+        renderer.resize(700, 1800);
+        const context = renderer.getContext();
+        context.setFont("Arial", 16, "bold");
+
+        let currentY = 20; // Starting Y position
+
+        // Loop through each key and draw its progression.
+        allKeys.forEach(keyInfo => {
+            // Draw the title for the key.
+            context.fillText(keyInfo.name, 15, currentY);
+
+            // Create and draw the stave with the correct key signature.
+            const stave = new Stave(10, currentY + 10, 650);
+            stave.addClef("treble").addKeySignature(keyInfo.signature).addTimeSignature("4/4");
+            stave.setContext(context).draw();
+
+            // Create the notes from the key's chord data.
+            const notes = keyInfo.chords.map(chord => new StaveNote(chord));
+
+            // Format and draw the notes on the stave.
+            const voice = new Voice({ num_beats: 16, beat_value: 4 });
+            voice.addTickables(notes);
+            new Formatter().joinVoices([voice]).format([voice], 600);
+            voice.draw(context, stave);
+
+            // Move down for the next key.
+            currentY += 140;
+        });
+    </script>
+</body>
+
+</html>

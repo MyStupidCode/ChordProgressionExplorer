@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>I-V-vi-IV in 12 Keys (Programmatic)</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding-bottom: 50px;
+        }
+    </style>
+    <script src="https://unpkg.com/vexflow@4.0.1/build/cjs/vexflow-debug.js"></script>
+</head>
+
+<body>
+    <div id="output"></div>
+
+    <script>
+        const { Renderer, Stave, StaveNote, Voice, Formatter } = Vex.Flow;
+
+        // --- Transposition Logic ---
+
+        const SHARP_NOTES = ['c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'b'];
+        const FLAT_NOTES = ['c', 'db', 'd', 'eb', 'e', 'f', 'gb', 'g', 'ab', 'a', 'bb', 'b'];
+        const NOTE_VALUES = { 'c': 0, 'd': 2, 'e': 4, 'f': 5, 'g': 7, 'a': 9, 'b': 11 };
+
+        /**
+         * Transposes a single VexFlow note by a given interval in semitones.
+         * @param {string} noteName - e.g., "c#/4" or "bb/3".
+         * @param {number} interval - The number of semitones to transpose.
+         * @param {boolean} useFlats - Whether to prefer flat spellings for the new note.
+         * @returns {string} The new, transposed VexFlow note name.
+         */
+        function transpose(noteName, interval, useFlats) {
+            const noteRegex = /^([a-g])(b|bb|#|##)?\/?([0-9])$/;
+            const match = noteRegex.exec(noteName.toLowerCase());
+            if (!match) return noteName;
+
+            const [, note, accidental, octave] = match;
+
+            let value = NOTE_VALUES[note];
+            if (accidental) {
+                if (accidental.includes('b')) value -= accidental.length;
+                if (accidental.includes('#')) value += accidental.length;
+            }
+
+            const totalValue = value + (parseInt(octave) * 12) + interval;
+            const newOctave = Math.floor(totalValue / 12);
+            const noteIndex = totalValue % 12;
+
+            const spelling = useFlats ? FLAT_NOTES[noteIndex] : SHARP_NOTES[noteIndex];
+            return `${spelling}/${newOctave}`;
+        }
+
+        // --- Base Data ---
+
+        // Define the I-V-vi-IV progression once, in C Major.
+        const baseProgression = [
+            { keys: ['c/4', 'e/4', 'g/4'], duration: 'w' }, // I
+            { keys: ['g/3', 'b/3', 'd/4'], duration: 'w' }, // V
+            { keys: ['a/3', 'c/4', 'e/4'], duration: 'w' }, // vi
+            { keys: ['f/3', 'a/3', 'c/4'], duration: 'w' }  // IV
+        ];
+
+        // Define the 12 keys by their interval from C and preferred spelling.
+        const allKeys = [
+            { name: 'C Major', signature: 'C', interval: 0, useFlats: false },
+            { name: 'G Major', signature: 'G', interval: 7, useFlats: false },
+            { name: 'D Major', signature: 'D', interval: 2, useFlats: false },
+            { name: 'A Major', signature: 'A', interval: 9, useFlats: false },
+            { name: 'E Major', signature: 'E', interval: 4, useFlats: false },
+            { name: 'B Major', signature: 'B', interval: 11, useFlats: false },
+            { name: 'F# Major', signature: 'F#', interval: 6, useFlats: false },
+            { name: 'Db Major', signature: 'Db', interval: 1, useFlats: true },
+            { name: 'Ab Major', signature: 'Ab', interval: 8, useFlats: true },
+            { name: 'Eb Major', signature: 'Eb', interval: 3, useFlats: true },
+            { name: 'Bb Major', signature: 'Bb', interval: 10, useFlats: true },
+            { name: 'F Major', signature: 'F', interval: 5, useFlats: true },
+        ];
+
+        // --- VexFlow Rendering ---
+        const div = document.getElementById("output");
+        const renderer = new Renderer(div, Renderer.Backends.SVG);
+        renderer.resize(700, 1800);
+        const context = renderer.getContext();
+        context.setFont("Arial", 16, "bold");
+
+        let currentY = 20;
+
+        allKeys.forEach(keyInfo => {
+            // Draw the title
+            context.fillText(keyInfo.name, 15, currentY);
+
+            // Create and draw the stave
+            const stave = new Stave(10, currentY + 10, 650);
+            stave.addClef("treble").addKeySignature(keyInfo.signature).addTimeSignature("4/4");
+            stave.setContext(context).draw();
+
+            // Programmatically transpose the base progression to the current key
+            const transposedChords = baseProgression.map(chord => ({
+                duration: chord.duration,
+                keys: chord.keys.map(key => transpose(key, keyInfo.interval, keyInfo.useFlats))
+            }));
+
+            // Create notes from the newly transposed chords
+            const notes = transposedChords.map(chord => new StaveNote(chord));
+
+            // Format and draw the voice
+            const voice = new Voice({ num_beats: 16, beat_value: 4 });
+            voice.addTickables(notes);
+            new Formatter().joinVoices([voice]).format([voice], 600);
+            voice.draw(context, stave);
+
+            currentY += 140; // Move down for the next key
+        });
+    </script>
+</body>
+
+</html>

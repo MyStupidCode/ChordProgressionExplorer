@@ -101,7 +101,7 @@
             </div>
         </header>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <div>
                 <label for="progression-select" class="block text-sm font-medium text-gray-700 mb-1">Progression</label>
                 <select id="progression-select"
@@ -140,6 +140,13 @@
                     class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
                     </select>
             </div>
+            <div>
+                <label for="instrument-select" class="block text-sm font-medium text-gray-700 mb-1">Instrument</label>
+                <select id="instrument-select"
+                    class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="piano">Piano</option>
+                </select>
+            </div>
         </div>
 
         <div id="score-output"
@@ -156,6 +163,7 @@
         const progressionSelect = document.getElementById('progression-select');
         const styleSelect = document.getElementById('style-select');
         const keySelect = document.getElementById('key-select');
+        const instrumentSelect = document.getElementById('instrument-select');
         const scoreOutput = document.getElementById('score-output');
         const playButton = document.getElementById('play-button');
         const tempoSlider = document.getElementById('tempo-slider');
@@ -163,14 +171,27 @@
         const volumeSlider = document.getElementById('volume-slider');
 
         // --- Music Playback Variables ---
-        let synth;
+        let sampler;
         let currentTransportId;
         let isPlaying = false;
+
+        // --- Instrument-specific data for Tone.js Sampler ---
+        const INSTRUMENTS = {
+            'piano': {
+                urls: {
+                    'C4': 'https://tonejs.github.io/audio/salamander/C4.mp3',
+                    'F#4': 'https://tonejs.github.io/audio/salamander/Fs4.mp3',
+                    'C5': 'https://tonejs.github.io/audio/salamander/C5.mp3'
+                },
+                release: 1.5
+            }
+        };
 
         // --- Music Theory Data ---
         const SHARP_NOTES = ['c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'b'];
         const FLAT_NOTES = ['c', 'db', 'd', 'eb', 'e', 'f', 'gb', 'g', 'ab', 'a', 'bb', 'b'];
         const NOTE_VALUES = { 'c': 0, 'd': 2, 'e': 4, 'f': 5, 'g': 7, 'a': 9, 'b': 11 };
+        const TONE_NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
         const PROGRESSIONS = {
             'pop': {
@@ -319,13 +340,11 @@
                 return;
             }
 
-            // Start the audio context on user interaction
-            await Tone.start();
-
             isPlaying = true;
             playButton.textContent = 'Playing...';
             playButton.disabled = true;
 
+            await Tone.start();
             resetHighlights();
             Tone.Transport.stop();
             Tone.Transport.clear(currentTransportId);
@@ -377,10 +396,7 @@
             currentTransportId = Tone.Transport.scheduleRepeat((time) => {
                 const event = notesToPlay[index];
                 if (event) {
-                    const toneNotes = event.notes.map(note => toToneNote(note));
-                    const duration = event.duration;
-                    synth.triggerAttackRelease(toneNotes, duration, time);
-
+                    sampler.triggerAttackRelease(event.notes.map(note => toToneNote(note)), event.duration, time);
                     Tone.Draw.schedule(() => {
                         resetHighlights();
                         highlightNote(index, true);
@@ -539,6 +555,31 @@
             scoreOutput.style.opacity = 1;
         }
 
+        async function loadInstrument(instrumentName) {
+            if (isPlaying) {
+                isPlaying = false;
+                Tone.Transport.stop();
+                Tone.Transport.clear(currentTransportId);
+            }
+
+            playButton.textContent = '▶️ Play';
+            playButton.disabled = true;
+
+            const instrumentData = INSTRUMENTS[instrumentName];
+            if (sampler) {
+                sampler.dispose();
+            }
+
+            sampler = new Tone.Sampler({
+                urls: instrumentData.urls,
+                release: instrumentData.release,
+                onload: () => {
+                    console.log(`${instrumentName} sampler loaded`);
+                    playButton.disabled = false;
+                }
+            }).toDestination();
+        }
+
         async function init() {
             ALL_KEYS.forEach((key, index) => {
                 const option = document.createElement('option');
@@ -548,19 +589,7 @@
             });
             keySelect.value = 2;
 
-            // Initialize a single Tone.Synth
-            synth = new Tone.Synth({
-                oscillator: {
-                    type: 'sine'
-                },
-                envelope: {
-                    attack: 0.05,
-                    decay: 0.1,
-                    sustain: 0.3,
-                    release: 1.5
-                }
-            }).toDestination();
-
+            await loadInstrument('piano');
             Tone.Destination.volume.value = volumeSlider.value;
             Tone.Transport.bpm.value = tempoSlider.value;
             tempoValueDisplay.textContent = tempoSlider.value;
@@ -577,6 +606,10 @@
 
             volumeSlider.addEventListener('input', (event) => {
                 Tone.Destination.volume.value = event.target.value;
+            });
+
+            instrumentSelect.addEventListener('change', (event) => {
+                loadInstrument(event.target.value);
             });
 
             drawScore();

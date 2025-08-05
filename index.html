@@ -67,6 +67,17 @@
             cursor: pointer;
             border-radius: 50%;
         }
+
+        /* Styles for scrollable content when showing all combinations */
+        #score-output.scrollable-content {
+            max-height: 600px;
+            /* Adjust as needed for desired scroll area height */
+            overflow-y: auto;
+            align-items: flex-start;
+            /* Align items to start in a column layout */
+            padding-right: 1rem;
+            /* Add some padding for the scrollbar */
+        }
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -101,6 +112,7 @@
             </div>
         </header>
 
+        <!-- Controls Section -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <div>
                 <label for="progression-select" class="block text-sm font-medium text-gray-700 mb-1">Progression</label>
@@ -138,20 +150,38 @@
                 <label for="key-select" class="block text-sm font-medium text-gray-700 mb-1">Key</label>
                 <select id="key-select"
                     class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
-                    </select>
+                    <!-- Key options will be populated by JavaScript -->
+                </select>
             </div>
             <div>
                 <label for="instrument-select" class="block text-sm font-medium text-gray-700 mb-1">Instrument</label>
                 <select id="instrument-select"
                     class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
                     <option value="piano">Piano</option>
+                    <option value="guitar-acoustic">Acoustic Guitar</option>
+                    <option value="violin">Violin</option>
+                    <option value="synth-pluck">Synth Pluck</option>
                 </select>
             </div>
         </div>
 
+        <!-- New Show All Toggles -->
+        <div class="flex flex-wrap gap-4 mb-6 items-center">
+            <div class="flex items-center space-x-2">
+                <input type="checkbox" id="toggle-styles" class="form-checkbox h-5 w-5 text-indigo-600 rounded">
+                <label for="toggle-styles" class="text-sm font-medium text-gray-700">All Styles for Current Progression</label>
+            </div>
+            <div class="flex items-center space-x-2">
+                <input type="checkbox" id="toggle-progressions" class="form-checkbox h-5 w-5 text-indigo-600 rounded">
+                <label for="toggle-progressions" class="text-sm font-medium text-gray-700">All Progressions for Current Style</label>
+            </div>
+        </div>
+
+        <!-- VexFlow Score Output -->
         <div id="score-output"
             class="w-full bg-gray-50 p-4 rounded-lg border min-h-[180px] flex justify-center items-center">
-            </div>
+            <!-- VexFlow SVG will be rendered here -->
+        </div>
 
     </div>
 
@@ -169,21 +199,60 @@
         const tempoSlider = document.getElementById('tempo-slider');
         const tempoValueDisplay = document.getElementById('tempo-value');
         const volumeSlider = document.getElementById('volume-slider');
+        const toggleStyles = document.getElementById('toggle-styles');
+        const toggleProgressions = document.getElementById('toggle-progressions');
 
         // --- Music Playback Variables ---
         let sampler;
         let currentTransportId;
         let isPlaying = false;
+        let showAllStylesForCurrentProgression = false;
+        let showAllProgressionsForCurrentStyle = false;
+        let showAllCombinationsActive = false; // This will now be derived from the two toggles
 
         // --- Instrument-specific data for Tone.js Sampler ---
         const INSTRUMENTS = {
             'piano': {
                 urls: {
-                    'C4': 'https://tonejs.github.io/audio/salamander/C4.mp3',
-                    'F#4': 'https://tonejs.github.io/audio/salamander/Fs4.mp3',
-                    'C5': 'https://tonejs.github.io/audio/salamander/C5.mp3'
+                    'C4': 'C4.mp3',
+                    'F#4': 'Fs4.mp3',
+                    'C5': 'C5.mp3'
                 },
-                release: 1.5
+                baseUrl: 'https://tonejs.github.io/audio/salamander/',
+                release: 1.5,
+                volume: 0
+            },
+            'guitar-acoustic': {
+                urls: {
+                    'F3': 'Acoustic_Guitar_Fingered_F3.mp3',
+                    'G3': 'Acoustic_Guitar_Fingered_G3.mp3',
+                    'C4': 'Acoustic_Guitar_Fingered_C4.mp3',
+                    'G4': 'Acoustic_Guitar_Fingered_G4.mp3',
+                },
+                baseUrl: 'https://tonejs.github.io/audio/salamander/2242/',
+                release: 1.5,
+                volume: -10
+            },
+            'violin': {
+                urls: {
+                    'A3': 'Violin_A3.mp3',
+                    'A4': 'Violin_A4.mp3',
+                    'A5': 'Violin_A5.mp3',
+                    'A6': 'Violin_A6.mp3',
+                },
+                baseUrl: 'https://tonejs.github.io/audio/salamander/2242/',
+                release: 2,
+                volume: -6
+            },
+            'synth-pluck': {
+                urls: {
+                    'C4': 'Synth_Pluck_C4.mp3',
+                    'E4': 'Synth_Pluck_E4.mp3',
+                    'G4': 'Synth_Pluck_G4.mp3',
+                },
+                baseUrl: 'https://tonejs.github.io/audio/salamander/2242/',
+                release: 0.5,
+                volume: -3
             }
         };
 
@@ -195,19 +264,19 @@
 
         const PROGRESSIONS = {
             'pop': {
-                name: "I-V-vi-IV",
+                name: "The 'Pop' Progression (I-V-vi-IV)",
                 baseChords: [['c/4', 'e/4', 'g/4'], ['g/3', 'b/3', 'd/4'], ['a/3', 'c/4', 'e/4'], ['f/3', 'a/3', 'c/4']]
             },
             'fifties': {
-                name: "I-vi-IV-V",
+                name: "The '50s Progression (I-vi-IV-V)",
                 baseChords: [['c/4', 'e/4', 'g/4'], ['a/3', 'c/4', 'e/4'], ['f/3', 'a/3', 'c/4'], ['g/3', 'b/3', 'd/4']]
             },
             'jazz': {
-                name: "ii-V-I",
+                name: "The Jazz Standard (ii-V-I)",
                 baseChords: [['d/4', 'f/4', 'a/4'], ['g/3', 'b/3', 'd/4'], ['c/4', 'e/4', 'g/4'], ['c/4', 'e/4', 'g/4']]
             },
             'sensitive': {
-                name: "vi-IV-I-V",
+                name: "The 'Sensitive' Progression (vi-IV-I-V)",
                 baseChords: [['a/3', 'c/4', 'e/4'], ['f/3', 'a/3', 'c/4'], ['c/4', 'e/4', 'g/4'], ['g/3', 'b/3', 'd/4']]
             },
             'canon': {
@@ -227,6 +296,23 @@
                 baseChords: [['c/4', 'e/4', 'g/4'], ['f/3', 'a/3', 'c/4'], ['b/3', 'd/4', 'f/4'], ['e/4', 'g/4', 'b/4'], ['a/3', 'c/4', 'e/4'], ['d/4', 'f/4', 'a/4'], ['g/3', 'b/3', 'd/4']]
             }
         };
+
+        const STYLES = { // Define STYLES object for easier lookup
+            'chords': { name: "Chords (Whole Notes)" },
+            'arpeggios-asc': { name: "Arpeggios (Ascending 8ths)" },
+            'arpeggios-desc': { name: "Arpeggios (Descending 8ths)" },
+            'alberti': { name: "Alberti Bass (8ths)" },
+            'waltz': { name: "Waltz (Bass on 1, Chords on 2 & 3)" },
+            'strum': { name: "Guitar Strum (Down-Up 8ths)" },
+            'major7th': { name: "Major 7th Chords" },
+            'minor7th': { name: "Minor 7th Chords" },
+            'dominant7th': { name: "Dominant 7th Chords" },
+            'diminished': { name: "Diminished Triads" },
+            'augmented': { name: "Augmented Triads" },
+            'sus4': { name: "Suspended 4th Chords" },
+            'sus2': { name: "Suspended 2nd Chords" },
+        };
+
 
         const ALL_KEYS = [
             { name: 'C Major', signature: 'C', interval: 0, useFlats: false, accidentals: 0 },
@@ -336,7 +422,8 @@
         }
 
         async function playProgression() {
-            if (isPlaying) {
+            // Only allow playback if no "show all" mode is active
+            if (isPlaying || showAllStylesForCurrentProgression || showAllProgressionsForCurrentStyle || showAllCombinationsActive) {
                 return;
             }
 
@@ -416,53 +503,48 @@
             Tone.Transport.start();
         }
 
-        function drawScore() {
-            if (isPlaying) {
-                isPlaying = false;
-                Tone.Transport.stop();
-                Tone.Transport.clear(currentTransportId);
-            }
+        // Helper function to draw a single score block
+        function drawSingleScoreBlock(containerElement, progressionId, styleId, keyObj) {
+            containerElement.innerHTML = ''; // Clear previous content in this block
 
-            playButton.textContent = '▶️ Play';
-            playButton.disabled = false;
+            const progression = PROGRESSIONS[progressionId];
+            const style = STYLES[styleId];
 
-            resetHighlights();
-            const selectedProgression = PROGRESSIONS[progressionSelect.value];
-            const selectedStyle = styleSelect.value;
-            const selectedKey = ALL_KEYS[keySelect.value];
-            scoreOutput.innerHTML = '';
-            scoreOutput.style.opacity = 0;
-            vexFlowNotes = [];
-
-            let transposedProgression = selectedProgression.baseChords.map(chord =>
-                chord.map(note => transpose(note, selectedKey.interval, selectedKey.useFlats))
+            let transposedChords = progression.baseChords.map(chord =>
+                chord.map(note => transpose(note, keyObj.interval, keyObj.useFlats))
             );
 
-            if (['major7th', 'minor7th', 'dominant7th', 'diminished', 'augmented', 'sus4', 'sus2'].includes(selectedStyle)) {
-                transposedProgression = transposedProgression.map(chord => applyStyleToChord(chord, selectedStyle));
+            if (['major7th', 'minor7th', 'dominant7th', 'diminished', 'augmented', 'sus4', 'sus2'].includes(styleId)) {
+                transposedChords = transposedChords.map(chord => applyStyleToChord(chord, styleId));
             }
 
-            const renderer = new Renderer(scoreOutput, Renderer.Backends.SVG);
+            const renderer = new Renderer(containerElement, Renderer.Backends.SVG);
             const context = renderer.getContext();
             let stave1, stave2;
 
-            if (['chords', 'major7th', 'minor7th', 'dominant7th', 'diminished', 'augmented', 'sus4', 'sus2'].includes(selectedStyle)) {
-                const notes = transposedProgression.map(chord => new StaveNote({ keys: chord, duration: 'w' }));
-                vexFlowNotes = notes;
+            // Determine rendering dimensions based on mode
+            const isArpeggioStyle = ['arpeggios-asc', 'arpeggios-desc', 'alberti'].includes(styleId);
+            const numMeasures = transposedChords.length;
+            const formatWidth = (numMeasures * 50) + 100; // Adjusted for better spacing
+            const padding = getPadding(keyObj.accidentals);
+            const staveWidth = formatWidth + padding;
+            const rendererHeight = isArpeggioStyle ? 280 : 180;
+
+            renderer.resize(staveWidth + 40, rendererHeight); // Add extra padding for clefs/keys
+
+            if (['chords', 'major7th', 'minor7th', 'dominant7th', 'diminished', 'augmented', 'sus4', 'sus2'].includes(styleId)) {
+                const notes = transposedChords.map(chord => new StaveNote({ keys: chord, duration: 'w' }));
+                
                 const voice = new Voice({ num_beats: notes.length * 4, beat_value: 4 }).addTickables(notes);
-                const formatWidth = (notes.length * 50) + 100;
-                const padding = getPadding(selectedKey.accidentals);
-                const staveWidth = formatWidth + padding;
-                renderer.resize(staveWidth, 180);
                 stave1 = new Stave(10, 20, staveWidth);
-                stave1.addClef("treble").addKeySignature(selectedKey.signature).addTimeSignature("4/4");
+                stave1.addClef("treble").addKeySignature(keyObj.signature).addTimeSignature("4/4");
                 stave1.setEndBarType(Barline.type.END);
                 stave1.setContext(context).draw();
                 new Formatter().joinVoices([voice]).format([voice], formatWidth);
                 voice.draw(context, stave1);
-            } else if (selectedStyle === 'waltz') {
+            } else if (styleId === 'waltz') {
                 const notes = [];
-                transposedProgression.forEach(chord => {
+                transposedChords.forEach(chord => {
                     const [root, third, fifth] = chord;
                     notes.push(
                         new StaveNote({ keys: [root], duration: 'q' }),
@@ -470,60 +552,49 @@
                         new StaveNote({ keys: [third, fifth], duration: 'q' })
                     );
                 });
-                vexFlowNotes = notes;
+                
                 const voice = new Voice({ num_beats: notes.length, beat_value: 4 }).addTickables(notes);
-                const numMeasures = transposedProgression.length;
-                const formatWidth = (numMeasures * 100);
-                const padding = getPadding(selectedKey.accidentals);
-                const staveWidth = formatWidth + padding;
-                renderer.resize(staveWidth, 180);
                 stave1 = new Stave(10, 20, staveWidth);
-                stave1.addClef("treble").addKeySignature(selectedKey.signature).addTimeSignature("3/4");
+                stave1.addClef("treble").addKeySignature(keyObj.signature).addTimeSignature("3/4");
                 stave1.setEndBarType(Barline.type.END);
                 stave1.setContext(context).draw();
                 new Formatter().joinVoices([voice]).format([voice], formatWidth);
                 voice.draw(context, stave1);
-            } else if (selectedStyle === 'strum') {
+            } else if (styleId === 'strum') {
                 const notes = [];
-                transposedProgression.forEach(chord => {
+                transposedChords.forEach(chord => {
                     notes.push(
                         new StaveNote({ keys: chord, duration: '8' }),
                         new StaveNote({ keys: chord, duration: '8', stem_direction: -1 })
                     );
                 });
-                vexFlowNotes = notes;
+                
                 const voice = new Voice({ num_beats: notes.length * 0.5, beat_value: 4 }).addTickables(notes);
-                const numMeasures = transposedProgression.length / 2;
-                const formatWidth = (numMeasures * 100);
-                const padding = getPadding(selectedKey.accidentals);
-                const staveWidth = formatWidth + padding;
-                renderer.resize(staveWidth, 180);
                 stave1 = new Stave(10, 20, staveWidth);
-                stave1.addClef("treble").addKeySignature(selectedKey.signature).addTimeSignature("4/4");
+                stave1.addClef("treble").addKeySignature(keyObj.signature).addTimeSignature("4/4");
                 stave1.setEndBarType(Barline.type.END);
                 stave1.setContext(context).draw();
                 const beams = Beam.generateBeams(notes);
                 new Formatter().format([voice], formatWidth);
                 voice.draw(context, stave1);
                 beams.forEach(b => b.setContext(context).draw());
-            } else {
+            } else { // Arpeggio styles
                 let notes1 = [], notes2 = [];
-                transposedProgression.forEach(chord => {
+                transposedChords.forEach(chord => {
                     const [root, third, fifth] = chord;
                     const octaveRoot = root.replace(/\d/, d => parseInt(d) + 1);
                     let pattern = [];
-                    if (selectedStyle === 'arpeggios-asc') pattern = [root, third, fifth, octaveRoot, fifth, third, root, third];
-                    else if (selectedStyle === 'arpeggios-desc') pattern = [octaveRoot, fifth, third, root, third, fifth, octaveRoot, fifth];
-                    else if (selectedStyle === 'alberti') pattern = [root, fifth, third, fifth, root, fifth, third, fifth];
+                    if (styleId === 'arpeggios-asc') pattern = [root, third, fifth, octaveRoot, fifth, third, root, third];
+                    else if (styleId === 'arpeggios-desc') pattern = [octaveRoot, fifth, third, root, third, fifth, octaveRoot, fifth];
+                    else if (styleId === 'alberti') pattern = [root, fifth, third, fifth, root, fifth, third, fifth];
 
                     pattern.map(noteKey => {
                         const newNote = new StaveNote({ keys: [noteKey], duration: '8' });
-                        if (vexFlowNotes.length < (pattern.length * transposedProgression.length) / 2) {
+                        if (notes1.length < (pattern.length * numMeasures) / 2) {
                             notes1.push(newNote);
                         } else {
                             notes2.push(newNote);
                         }
-                        vexFlowNotes.push(newNote);
                     });
                 });
                 const voice1 = new Voice({ num_beats: (notes1.length / 2), beat_value: 4 }).addTickables(notes1);
@@ -531,15 +602,14 @@
                 const formatter = new Formatter();
                 const notesWidth1 = formatter.preCalculateMinTotalWidth([voice1]);
                 const notesWidth2 = formatter.preCalculateMinTotalWidth([voice2]);
-                const padding = getPadding(selectedKey.accidentals);
                 const staveWidth1 = notesWidth1 + padding;
                 const staveWidth2 = notesWidth2 + padding;
-                renderer.resize(Math.max(staveWidth1, staveWidth2) + 40, 280);
+                
                 stave1 = new Stave(10, 20, staveWidth1);
-                stave1.addClef("treble").addKeySignature(selectedKey.signature).addTimeSignature("4/4");
+                stave1.addClef("treble").addKeySignature(keyObj.signature).addTimeSignature("4/4");
                 stave1.setContext(context).draw();
                 stave2 = new Stave(10, 140, staveWidth2);
-                stave2.addClef("treble").addKeySignature(selectedKey.signature).addTimeSignature("4/4");
+                stave2.addClef("treble").addKeySignature(keyObj.signature).addTimeSignature("4/4");
                 stave2.setEndBarType(Barline.type.END);
                 stave2.setContext(context).draw();
                 const beams1 = Beam.generateBeams(notes1);
@@ -550,6 +620,121 @@
                 new Formatter().format([voice2], notesWidth2);
                 voice2.draw(context, stave2);
                 beams2.forEach(b => b.setContext(context).draw());
+            }
+        }
+
+
+        function drawScore() {
+            if (isPlaying) {
+                isPlaying = false;
+                Tone.Transport.stop();
+                Tone.Transport.clear(currentTransportId);
+            }
+
+            playButton.textContent = '▶️ Play';
+            playButton.disabled = false;
+            resetHighlights();
+
+            scoreOutput.innerHTML = ''; // Clear previous content
+            scoreOutput.style.opacity = 0;
+            
+            // Remove any previous layout classes and add default column layout
+            scoreOutput.classList.remove('flex', 'justify-center', 'items-center', 'grid', 'gap-4', 'grid-cols-1', 'sm:grid-cols-2', 'lg:grid-cols-3');
+            scoreOutput.classList.add('flex', 'flex-col', 'items-center');
+
+            const selectedKey = ALL_KEYS[keySelect.value];
+            const currentProgressionId = progressionSelect.value;
+            const currentStyleId = styleSelect.value;
+
+            // Determine if any "show all" mode is active
+            showAllCombinationsActive = toggleStyles.checked && toggleProgressions.checked;
+            const anyShowAllActive = toggleStyles.checked || toggleProgressions.checked;
+            
+            // Control dropdowns and play button based on showAll modes
+            progressionSelect.disabled = anyShowAllActive;
+            styleSelect.disabled = anyShowAllActive;
+            instrumentSelect.disabled = anyShowAllActive;
+            playButton.disabled = anyShowAllActive || isPlaying; // Play button also disabled if playing
+
+            // Adjust score-output container class for scrolling
+            if (anyShowAllActive) {
+                scoreOutput.classList.add('scrollable-content');
+            } else {
+                scoreOutput.classList.remove('scrollable-content');
+            }
+
+            if (showAllCombinationsActive) {
+                const mainHeader = document.createElement('h2');
+                mainHeader.classList.add('text-2xl', 'font-bold', 'text-gray-900', 'mt-4', 'mb-4', 'border-b', 'pb-2', 'w-full', 'text-center');
+                mainHeader.textContent = `All Combinations (7 Progressions x 13 Styles)`;
+                scoreOutput.appendChild(mainHeader);
+
+                Object.keys(PROGRESSIONS).forEach(progressionId => {
+                    Object.keys(STYLES).forEach(styleId => {
+                        const containerDiv = document.createElement('div');
+                        containerDiv.classList.add('bg-white', 'p-4', 'rounded-lg', 'shadow-sm', 'border', 'mb-4', 'w-full');
+
+                        const labelDiv = document.createElement('div');
+                        labelDiv.classList.add('text-base', 'font-semibold', 'text-gray-800', 'mb-2');
+                        labelDiv.textContent = `${PROGRESSIONS[progressionId].name} - ${STYLES[styleId].name}`;
+                        containerDiv.appendChild(labelDiv);
+
+                        const scoreContainer = document.createElement('div');
+                        containerDiv.appendChild(scoreContainer);
+                        drawSingleScoreBlock(scoreContainer, progressionId, styleId, selectedKey);
+                        scoreOutput.appendChild(containerDiv);
+                    });
+                });
+
+            } else if (toggleStyles.checked) { // Only show all styles if toggleStyles is checked and not showAllCombinationsActive
+                const progressionName = PROGRESSIONS[currentProgressionId].name;
+                const mainHeader = document.createElement('h2');
+                mainHeader.classList.add('text-2xl', 'font-bold', 'text-gray-900', 'mt-4', 'mb-4', 'border-b', 'pb-2', 'w-full', 'text-center');
+                mainHeader.textContent = `All Styles for: ${progressionName}`;
+                scoreOutput.appendChild(mainHeader);
+
+                Object.keys(STYLES).forEach((styleId) => {
+                    const containerDiv = document.createElement('div');
+                    containerDiv.classList.add('bg-white', 'p-4', 'rounded-lg', 'shadow-sm', 'border', 'mb-4', 'w-full');
+
+                    const labelDiv = document.createElement('div');
+                    labelDiv.classList.add('text-base', 'font-semibold', 'text-gray-800', 'mb-2');
+                    labelDiv.textContent = STYLES[styleId].name;
+                    containerDiv.appendChild(labelDiv);
+
+                    const scoreContainer = document.createElement('div');
+                    containerDiv.appendChild(scoreContainer);
+                    
+                    drawSingleScoreBlock(scoreContainer, currentProgressionId, styleId, selectedKey);
+                    scoreOutput.appendChild(containerDiv);
+                });
+
+            } else if (toggleProgressions.checked) { // Only show all progressions if toggleProgressions is checked and not showAllCombinationsActive
+                const styleName = STYLES[currentStyleId].name;
+                const mainHeader = document.createElement('h2');
+                mainHeader.classList.add('text-2xl', 'font-bold', 'text-gray-900', 'mt-4', 'mb-4', 'border-b', 'pb-2', 'w-full', 'text-center');
+                mainHeader.textContent = `All Progressions for: ${styleName}`;
+                scoreOutput.appendChild(mainHeader);
+
+                Object.keys(PROGRESSIONS).forEach((progressionId) => {
+                    const containerDiv = document.createElement('div');
+                    containerDiv.classList.add('bg-white', 'p-4', 'rounded-lg', 'shadow-sm', 'border', 'mb-4', 'w-full');
+
+                    const labelDiv = document.createElement('div');
+                    labelDiv.classList.add('text-base', 'font-semibold', 'text-gray-800', 'mb-2');
+                    labelDiv.textContent = PROGRESSIONS[progressionId].name;
+                    containerDiv.appendChild(labelDiv);
+
+                    const scoreContainer = document.createElement('div');
+                    containerDiv.appendChild(scoreContainer);
+
+                    drawSingleScoreBlock(scoreContainer, progressionId, currentStyleId, selectedKey);
+                    scoreOutput.appendChild(containerDiv);
+                });
+
+            } else {
+                // Default view: single selected combination
+                drawSingleScoreBlock(scoreOutput, currentProgressionId, currentStyleId, selectedKey);
             }
 
             scoreOutput.style.opacity = 1;
@@ -562,7 +747,8 @@
                 Tone.Transport.clear(currentTransportId);
             }
 
-            playButton.textContent = '▶️ Play';
+            // Initially disable the play button and show a loading state
+            playButton.textContent = 'Loading...';
             playButton.disabled = true;
 
             const instrumentData = INSTRUMENTS[instrumentName];
@@ -572,12 +758,33 @@
 
             sampler = new Tone.Sampler({
                 urls: instrumentData.urls,
+                baseUrl: instrumentData.baseUrl,
                 release: instrumentData.release,
                 onload: () => {
                     console.log(`${instrumentName} sampler loaded`);
-                    playButton.disabled = false;
+                    playButton.textContent = '▶️ Play';
+                    // Only enable play button if no "show all" mode is active
+                    if (!toggleStyles.checked && !toggleProgressions.checked) {
+                        playButton.disabled = false;
+                    }
+                },
+                onerror: (e) => {
+                    console.error(`Error loading ${instrumentName} sampler:`, e);
+                    // Fallback to a basic synth if the sampler fails to load
+                    sampler = new Tone.Synth().toDestination();
+                    sampler.volume.value = -12; // Set a default volume
+                    playButton.textContent = '▶️ Play (Synth Fallback)';
+                    // Only enable play button if no "show all" mode is active
+                    if (!toggleStyles.checked && !toggleProgressions.checked) {
+                        playButton.disabled = false;
+                    }
                 }
             }).toDestination();
+
+            // Set volume if specified
+            if (instrumentData.volume !== undefined) {
+                sampler.volume.value = instrumentData.volume;
+            }
         }
 
         async function init() {
@@ -587,13 +794,16 @@
                 option.textContent = key.name;
                 keySelect.appendChild(option);
             });
-            keySelect.value = 2;
+            keySelect.value = 2; // Default to D Major
 
+            // Load the default instrument (piano) on page load
             await loadInstrument('piano');
+            
             Tone.Destination.volume.value = volumeSlider.value;
             Tone.Transport.bpm.value = tempoSlider.value;
             tempoValueDisplay.textContent = tempoSlider.value;
 
+            // Event Listeners
             progressionSelect.addEventListener('change', drawScore);
             styleSelect.addEventListener('change', drawScore);
             keySelect.addEventListener('change', drawScore);
@@ -612,7 +822,25 @@
                 loadInstrument(event.target.value);
             });
 
-            drawScore();
+            toggleStyles.addEventListener('change', (event) => {
+                showAllStylesForCurrentProgression = event.target.checked;
+                // If toggling styles on, make sure progressions toggle is off
+                if (showAllStylesForCurrentProgression) {
+                    toggleProgressions.checked = false; // Ensure only one is active at a time for individual modes
+                }
+                drawScore();
+            });
+
+            toggleProgressions.addEventListener('change', (event) => {
+                showAllProgressionsForCurrentStyle = event.target.checked;
+                // If toggling progressions on, make sure styles toggle is off
+                if (showAllProgressionsForCurrentStyle) {
+                    toggleStyles.checked = false; // Ensure only one is active at a time for individual modes
+                }
+                drawScore();
+            });
+
+            drawScore(); // Initial draw
         }
 
         init();
